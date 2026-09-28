@@ -82,14 +82,17 @@ SUPABASE_DB_URL = os.environ.get("SUPABASE_DB_URL")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 # Ollama limita el contexto a 2048 tokens por defecto para cualquier modelo,
-# aunque nomic-embed-text soporta hasta 8192. Sin este override, un artículo
-# largo (con incisos, tablas, etc.) supera el límite y el /api/embeddings
-# devuelve 500 "input length exceeds the context length".
+# aunque nomic-embed-text soporta hasta 8192. Este override se manda por si
+# tu versión de Ollama lo respeta para /api/embeddings, pero varias versiones
+# lo ignoran en ese endpoint — por eso NO confiamos solo en esto: ver
+# MAX_CHARS_POR_EMBEDDING abajo, que es la protección real.
 OLLAMA_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
-# Umbral de caracteres a partir del cual, incluso con num_ctx alto, partimos
-# el chunk en pedazos más chicos antes de pedir el embedding (colchón de
-# seguridad para artículos excepcionalmente largos o mal segmentados).
-MAX_CHARS_POR_EMBEDDING = 20000
+# Umbral de caracteres a partir del cual partimos el chunk en pedazos más
+# chicos antes de pedir el embedding. 4000 caracteres de texto legal en
+# español equivalen aprox. a 1000-1300 tokens — con margen de sobra bajo
+# el límite de 2048 tokens que Ollama aplica por defecto, incluso si
+# OLLAMA_NUM_CTX de arriba termina siendo ignorado por tu versión.
+MAX_CHARS_POR_EMBEDDING = 4000
 
 # Nomic recomienda prefijar los textos indexados con "search_document: "
 # (y las consultas, en el lado de Cowork, con "search_query: ") para
@@ -330,21 +333,54 @@ def embed_text(text: str) -> list[float]:
     return resp.json()["embedding"]
 
 
+def _split_por_palabras(texto: str, max_chars: int) -> list[str]:
+    """Último recurso: si un párrafo entero (sin saltos de línea internos)
+    ya supera max_chars, lo partimos por palabras para no cortar una a la
+    mitad."""
+    palabras = texto.split(" ")
+    partes = []
+    actual = ""
+    for palabra in palabras:
+        candidato = f"{actual} {palabra}" if actual else palabra
+        if len(candidato) > max_chars and actual:
+            partes.append(actual)
+            actual = palabra
+        else:
+            actual = candidato
+    if actual:
+        partes.append(actual)
+    return partes
+
+
 def split_texto_largo(texto: str, max_chars: int = MAX_CHARS_POR_EMBEDDING) -> list[str]:
-    """Parte un texto largo en trozos por párrafo, sin cortar palabras,
-    para no superar el contexto del modelo de embeddings aunque el
-    chunking jerárquico haya agrupado un artículo excepcionalmente largo
-    (incisos extensos, tablas, listas, etc.)."""
+    """Parte un texto largo en trozos que no superen max_chars, para no
+    exceder el contexto del modelo de embeddings aunque el chunking
+    jerárquico haya agrupado un artículo excepcionalmente largo (incisos
+    extensos, tablas, listas, etc.).
+
+    Primero intenta partir por párrafo (saltos de línea). Muchos PDFs de
+    normas extraen un artículo entero como una sola línea continua (sin
+    \\n internos) — en ese caso, un solo "párrafo" ya supera max_chars por
+    sí solo, así que además partimos por palabras como último recurso,
+    garantizando que ningún fragmento resultante exceda el límite."""
     if len(texto) <= max_chars:
         return [texto]
 
+    piezas = [p for p in texto.split("\n") if p.strip()] or [texto]
+
     partes = []
     actual = ""
-    for parrafo in texto.split("\n"):
-        candidato = f"{actual}\n{parrafo}" if actual else parrafo
+    for pieza in piezas:
+        if len(pieza) > max_chars:
+            if actual:
+                partes.append(actual)
+                actual = ""
+            partes.extend(_split_por_palabras(pieza, max_chars))
+            continue
+        candidato = f"{actual}\n{pieza}" if actual else pieza
         if len(candidato) > max_chars and actual:
             partes.append(actual)
-            actual = parrafo
+            actual = pieza
         else:
             actual = candidato
     if actual:
