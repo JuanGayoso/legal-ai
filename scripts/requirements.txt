@@ -5,3 +5,4 @@ psycopg2-binary>=2.9
 pgvector>=0.3
 requests>=2.31
 python-dotenv>=1.0
+tqdm>=4.66

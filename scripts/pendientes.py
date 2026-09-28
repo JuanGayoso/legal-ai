@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-pendientes.py — Lista qué dejó el ingestor mecánico para que Claude Code
-(el CLO y los gerentes) revise en tu siguiente sesión.
+pendientes.py — Lista qué dejó el ingestor mecánico para que el CLO y
+los gerentes revisen en tu siguiente sesión de Cowork (claude.ai).
 
 Uso:
     python pendientes.py
@@ -54,8 +54,9 @@ def main():
         print(f"  - [{id_}] '{origen[:50]}' --{tipo}--> '{afectada[:50]}'")
 
     if normas_pendientes or relaciones_pendientes:
-        print("\n👉 Abre Claude Code en esta carpeta y pide al CLO que revise "
-              "estos pendientes con el gerente del dominio correspondiente.")
+        print("\n👉 Abre tu chat de Cowork (claude.ai) y pide al CLO que "
+              "revise estos pendientes con el gerente del dominio "
+              "correspondiente.")
     else:
         print("\n✅ No hay nada pendiente de revisión.")
 

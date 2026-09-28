@@ -3,11 +3,14 @@
 ingest.py — Ingestor mecánico de normas para Legal AI
 =======================================================
 
-Reemplaza la parte MECÁNICA de los agentes "Asistente de Ingesta" y
-"Bibliotecario" (ver agents/asistente-ingesta/SKILL.md y
-agents/bibliotecario/SKILL.md) con código Python puro, sin pasar por
-Claude Code. Esto permite correr ingestas masivas sin consumir tu cupo
-de plan de Claude.
+Este script es el PROCESO DE INGESTA: se corre aparte, en tu terminal,
+antes de usar el área legal. No requiere Claude Code ni gasta tu cupo
+de plan de Claude — es código Python puro que hace el trabajo mecánico
+de leer, ordenar y vectorizar normas.
+
+El PROCESO DE USO (consultas, revisión de lo ingerido, correcciones) es
+un tema aparte y se hace después, en Cowork (claude.ai) — ver el README
+principal, Parte B.
 
 Lo que SÍ hace este script (mecánico, determinístico):
   1. Calcula el hash del PDF y verifica duplicados contra `normas`.
@@ -25,21 +28,22 @@ Lo que SÍ hace este script (mecánico, determinístico):
      ("Derógase el artículo X de la Ley N° ...") y los deja en
      `relaciones_normas` como TENTATIVOS (confirmado=false).
 
-Lo que este script NO hace (a propósito) — sigue siendo trabajo de los
-agentes / de un humano:
+Lo que este script NO hace (a propósito) — eso es trabajo del CLO y los
+gerentes en Cowork, no de este script:
   - Confirmar que una relación de derogación/modificación es correcta.
     La detección por regex es un candidato, no una verdad legal.
   - Decidir si la norma queda "vigente" — el estado se guarda como
-    `pendiente_validacion` para que el CLO / gerente del dominio lo
-    revise en tu siguiente sesión de Claude Code.
+    `pendiente_validacion` para que se revise después en Cowork.
   - Cualquier interpretación de fondo del contenido.
 
-Uso:
-    python ingest.py archivo.pdf
-    python ingest.py archivo.pdf --dominio tributario
-    python ingest.py archivo.pdf --dominio laboral --dominio tributario
-    python ingest.py archivo.pdf --tipo-norma "decreto supremo" --entidad SUNAT
-    python ingest.py archivo.pdf --dry-run   # no escribe nada, solo muestra
+Uso — un solo archivo:
+    python ingest.py ruta/a/norma.pdf
+    python ingest.py ruta/a/norma.pdf --dominio tributario
+    python ingest.py ruta/a/norma.pdf --dry-run
+
+Uso — una carpeta completa (busca *.pdf recursivamente):
+    python ingest.py ruta/a/carpeta_de_normas/
+    python ingest.py ruta/a/carpeta_de_normas/ --dominio laboral
 
 Requisitos del sistema (además de requirements.txt):
     - Ollama corriendo (`ollama serve`) con `ollama pull nomic-embed-text`
@@ -55,6 +59,7 @@ import os
 import re
 import sys
 from datetime import date
+from pathlib import Path
 
 import fitz  # PyMuPDF
 import psycopg2
@@ -63,6 +68,7 @@ import requests
 from dotenv import load_dotenv
 from PIL import Image
 from pgvector.psycopg2 import register_vector
+from tqdm import tqdm
 
 # ---------------------------------------------------------------------
 # Configuración
@@ -75,17 +81,14 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
 # Nomic recomienda prefijar los textos indexados con "search_document: "
-# (y las consultas, cuando escribas el script de consulta, con
-# "search_query: ") para mejorar la calidad del retrieval.
+# (y las consultas, en el lado de Cowork, con "search_query: ") para
+# mejorar la calidad del retrieval.
 NOMIC_DOC_PREFIX = "search_document: "
 
 MIN_CHARS_NATIVE_PAGE = 40  # bajo este umbral, la página se considera escaneada
 
 DOMINIOS_VALIDOS = {"tributario", "corporativo", "laboral", "contratos"}
 
-# Heurística de clasificación de dominio por palabras clave.
-# Es deliberadamente simple — el objetivo es una PROPUESTA que el
-# gerente confirma, no una clasificación perfecta.
 KEYWORDS_DOMINIO = {
     "tributario": [
         "sunat", "tributari", "impuesto", "igv", "renta", "itan",
@@ -106,7 +109,6 @@ KEYWORDS_DOMINIO = {
     ],
 }
 
-# Heurística de tipo de norma (Perú)
 TIPO_NORMA_PATTERNS = [
     (r"decreto\s+legislativo", "decreto legislativo"),
     (r"decreto\s+supremo", "decreto supremo"),
@@ -117,8 +119,6 @@ TIPO_NORMA_PATTERNS = [
     (r"\bley\s+n[°º]?\s*\d+", "ley"),
 ]
 
-# Detección de candidatos de derogación/modificación por regex.
-# Ejemplo que detecta: "Derógase el artículo 5 de la Ley N° 12345"
 RELACION_PATTERNS = [
     ("deroga", re.compile(
         r"der[oó]ga[sn]?e?\s+(?:el|los|la|las)?\s*(?:art[ií]culo[s]?\s*[\d°ºy,\s]+\s*(?:de\s+)?)?"
@@ -139,18 +139,43 @@ MESES = {
     "noviembre": 11, "diciembre": 12,
 }
 
+HEADING_PATTERN = re.compile(
+    r"^\s*(T[ÍI]TULO\s+[IVXLCDM]+[^\n]*|"
+    r"CAP[ÍI]TULO\s+[IVXLCDM]+[^\n]*|"
+    r"Art[íi]culo\s+\d+[°º]?\.?[-–—]?[^\n]*)",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+FASES = [
+    "Leyendo PDF / OCR",
+    "Clasificando metadata",
+    "Generando chunks",
+    "Generando embeddings",
+    "Guardando en Supabase",
+    "Detectando relaciones",
+]
+
+
+def fase(n: int, detalle: str = ""):
+    """Imprime un encabezado de fase consistente, para que el usuario
+    siempre sepa en qué parte del proceso está y nunca piense que el
+    script se congeló."""
+    total = len(FASES)
+    nombre = FASES[n - 1]
+    extra = f" — {detalle}" if detalle else ""
+    print(f"  [{n}/{total}] {nombre}{extra}")
+
 
 # ---------------------------------------------------------------------
 # 1. Extracción de texto + decisión de OCR
 # ---------------------------------------------------------------------
 
 def extract_text_per_page(pdf_path: str) -> list[str]:
-    """Devuelve el texto de cada página, usando OCR solo donde haga falta."""
     doc = fitz.open(pdf_path)
     pages_text = []
     ocr_pages = 0
 
-    for page_num in range(len(doc)):
+    for page_num in tqdm(range(len(doc)), desc="    páginas", unit="pág", leave=False):
         page = doc[page_num]
         native_text = page.get_text().strip()
 
@@ -158,7 +183,6 @@ def extract_text_per_page(pdf_path: str) -> list[str]:
             pages_text.append(native_text)
             continue
 
-        # Página probablemente escaneada -> OCR
         ocr_pages += 1
         pix = page.get_pixmap(dpi=300)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
@@ -168,9 +192,9 @@ def extract_text_per_page(pdf_path: str) -> list[str]:
     doc.close()
 
     if ocr_pages:
-        print(f"  OCR aplicado en {ocr_pages}/{len(pages_text)} páginas.")
+        print(f"    OCR aplicado en {ocr_pages}/{len(pages_text)} páginas.")
     else:
-        print("  Texto nativo en todas las páginas (sin OCR).")
+        print("    Texto nativo en todas las páginas (sin OCR).")
 
     return pages_text
 
@@ -210,14 +234,11 @@ def detect_dominios(full_text: str) -> list[str]:
             scores[dominio] = score
     if not scores:
         return []
-    # Se queda con los dominios que tengan al menos 30% de la señal del
-    # dominio más fuerte (para permitir normas que cruzan materias).
     max_score = max(scores.values())
     return [d for d, s in scores.items() if s >= max_score * 0.3]
 
 
 def extract_titulo(full_text: str) -> str:
-    """Primera línea no vacía y razonablemente larga como título tentativo."""
     for line in full_text.splitlines():
         line = line.strip()
         if len(line) > 15:
@@ -229,19 +250,10 @@ def extract_titulo(full_text: str) -> str:
 # 3. Chunking jerárquico (Título > Capítulo > Artículo)
 # ---------------------------------------------------------------------
 
-HEADING_PATTERN = re.compile(
-    r"^\s*(T[ÍI]TULO\s+[IVXLCDM]+[^\n]*|"
-    r"CAP[ÍI]TULO\s+[IVXLCDM]+[^\n]*|"
-    r"Art[íi]culo\s+\d+[°º]?\.?[-–—]?[^\n]*)",
-    re.IGNORECASE | re.MULTILINE,
-)
-
-
 def chunk_by_hierarchy(full_text: str) -> list[dict]:
     matches = list(HEADING_PATTERN.finditer(full_text))
 
     if not matches:
-        # Sin estructura de artículos detectable -> un solo chunk.
         return [{
             "referencia_jerarquica": "Texto completo (sin estructura de artículos detectada)",
             "contenido": full_text.strip(),
@@ -261,12 +273,11 @@ def chunk_by_hierarchy(full_text: str) -> list[dict]:
         if heading_lower.startswith("título") or heading_lower.startswith("titulo"):
             current_titulo = heading
             current_capitulo = None
-            continue  # el título por sí solo no es un chunk consultable
+            continue
         elif heading_lower.startswith("capítulo") or heading_lower.startswith("capitulo"):
             current_capitulo = heading
-            continue  # idem para el capítulo
+            continue
 
-        # Es un Artículo -> este sí es un chunk
         partes = [p for p in [current_titulo, current_capitulo, heading] if p]
         referencia = ", ".join(partes)
         chunks.append({
@@ -275,7 +286,6 @@ def chunk_by_hierarchy(full_text: str) -> list[dict]:
         })
 
     if not chunks:
-        # Había títulos/capítulos pero ningún "Artículo" -> fallback
         return [{
             "referencia_jerarquica": "Texto completo (sin artículos individuales detectados)",
             "contenido": full_text.strip(),
@@ -330,7 +340,6 @@ def find_relacion_candidates(full_text: str) -> list[dict]:
 
 
 def match_existing_norma(cur, referencia_texto: str):
-    """Busca en `normas` alguna cuyo título contenga la referencia detectada."""
     numero = referencia_texto.split("N°")[-1].strip()
     cur.execute(
         "select id, titulo from normas where titulo ilike %s limit 1",
@@ -340,65 +349,33 @@ def match_existing_norma(cur, referencia_texto: str):
 
 
 # ---------------------------------------------------------------------
-# Main
+# Procesamiento de un solo archivo (reutilizado en modo carpeta)
 # ---------------------------------------------------------------------
 
-def main():
-    parser = argparse.ArgumentParser(description="Ingestor mecánico de normas (Legal AI)")
-    parser.add_argument("pdf_path", help="Ruta al PDF de la norma")
-    parser.add_argument("--dominio", action="append", choices=sorted(DOMINIOS_VALIDOS),
-                         help="Forzar dominio (puede repetirse para varios)")
-    parser.add_argument("--tipo-norma", help="Forzar tipo de norma (ej. 'decreto supremo')")
-    parser.add_argument("--entidad", help="Forzar entidad emisora (ej. 'SUNAT')")
-    parser.add_argument("--familia", choices=["NEC", "FIDIC", "IFOA", "AIA"],
-                         help="Solo para dominio=contratos: familia del estándar")
-    parser.add_argument("--dry-run", action="store_true",
-                         help="No escribe en Supabase, solo muestra qué haría")
-    args = parser.parse_args()
+def process_one(pdf_path: str, args, cur) -> str:
+    """Devuelve un string corto con el resultado, para el resumen final."""
+    print(f"\n📄 {pdf_path}")
 
-    if not os.path.exists(args.pdf_path):
-        print(f"❌ No existe el archivo: {args.pdf_path}")
-        sys.exit(1)
-
-    if not args.dry_run:
-        if not SUPABASE_DB_URL:
-            print("❌ Falta SUPABASE_DB_URL. Copia scripts/.env.example a "
-                  "scripts/.env y complétalo.")
-            sys.exit(1)
-        check_ollama_ready()
-
-    print(f"\n📄 Procesando: {args.pdf_path}")
-
-    # --- Hash + duplicado ---
-    with open(args.pdf_path, "rb") as f:
+    with open(pdf_path, "rb") as f:
         file_bytes = f.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-    conn = None
-    cur = None
     if not args.dry_run:
-        conn = psycopg2.connect(SUPABASE_DB_URL)
-        register_vector(conn)
-        cur = conn.cursor()
         cur.execute("select id from normas where hash_archivo = %s", (file_hash,))
         existing = cur.fetchone()
         if existing:
-            print(f"⚠️  Ya existe una norma con este hash (id={existing[0]}). "
-                  f"Se omite para no duplicar.")
-            cur.close()
-            conn.close()
-            return
+            print(f"  ⚠️  Ya existe (id={existing[0]}). Se omite.")
+            return "duplicado"
 
-    # --- Extracción de texto (con OCR si hace falta) ---
-    pages_text = extract_text_per_page(args.pdf_path)
+    fase(1)
+    pages_text = extract_text_per_page(pdf_path)
     full_text = "\n".join(pages_text)
 
     if len(full_text.strip()) < 50:
-        print("❌ No se pudo extraer texto útil del PDF (ni nativo ni por OCR). "
-              "Revisa la calidad del escaneo.")
-        sys.exit(1)
+        print("  ❌ No se pudo extraer texto útil (ni nativo ni por OCR). Se omite.")
+        return "error_sin_texto"
 
-    # --- Metadata ---
+    fase(2)
     titulo = extract_titulo(full_text)
     tipo_norma = args.tipo_norma or detect_tipo_norma(full_text[:2000])
     fecha_publicacion = detect_fecha(full_text)
@@ -406,33 +383,27 @@ def main():
     entidad_emisora = args.entidad
 
     if not dominios:
-        print("⚠️  No se pudo determinar el dominio automáticamente. "
-              "Usa --dominio para indicarlo manualmente.")
-        sys.exit(1)
+        print("  ⚠️  No se pudo determinar el dominio automáticamente. "
+              "Usa --dominio para indicarlo manualmente. Se omite.")
+        return "error_sin_dominio"
 
-    print(f"  Título (tentativo): {titulo}")
-    print(f"  Tipo de norma: {tipo_norma}")
-    print(f"  Fecha detectada: {fecha_publicacion or '(no detectada)'}")
-    print(f"  Dominio(s): {dominios}")
+    print(f"    Título (tentativo): {titulo}")
+    print(f"    Tipo de norma: {tipo_norma}")
+    print(f"    Fecha detectada: {fecha_publicacion or '(no detectada)'}")
+    print(f"    Dominio(s): {dominios}")
 
-    # --- Chunking ---
+    fase(3)
     chunks = chunk_by_hierarchy(full_text)
-    print(f"  Chunks generados: {len(chunks)}")
+    print(f"    Chunks generados: {len(chunks)}")
 
-    # --- Candidatos de relación (derogación/modificación) ---
     relacion_candidates = find_relacion_candidates(full_text)
-    if relacion_candidates:
-        print(f"  Candidatos de derogación/modificación detectados: "
-              f"{len(relacion_candidates)} (quedarán como TENTATIVOS)")
 
     if args.dry_run:
-        print("\n🔎 --dry-run: no se escribió nada en Supabase.")
-        print("\nPrimeros 2 chunks de muestra:")
+        print("\n  🔎 --dry-run: no se escribió nada en Supabase.")
         for c in chunks[:2]:
-            print(f"  [{c['referencia_jerarquica']}] {c['contenido'][:150]}...")
-        return
+            print(f"    [{c['referencia_jerarquica']}] {c['contenido'][:150]}...")
+        return "dry_run"
 
-    # --- Insertar norma ---
     cur.execute(
         """
         insert into normas
@@ -447,15 +418,15 @@ def main():
         ),
     )
     norma_id = cur.fetchone()[0]
-    print(f"  ✅ Norma insertada (id={norma_id}, estado=pendiente_validacion)")
 
-    # --- Embeddings + chunks ---
-    # Nota: dominios[0] se usa para el chunk si es multi-dominio; si necesitas
-    # chunks por dominio separado, corre el script una vez por dominio o
-    # ajusta esta línea a tu criterio.
+    fase(4, f"{len(chunks)} chunk(s)")
     dominio_principal = dominios[0]
-    for i, chunk in enumerate(chunks, 1):
+    for chunk in tqdm(chunks, desc="    embeddings", unit="chunk", leave=False):
         embedding = embed_text(chunk["contenido"])
+        chunk["_embedding"] = embedding
+
+    fase(5)
+    for chunk in chunks:
         cur.execute(
             """
             insert into chunks_embeddings
@@ -463,12 +434,11 @@ def main():
             values (%s, %s, %s, %s, %s)
             """,
             (norma_id, dominio_principal, chunk["referencia_jerarquica"],
-             chunk["contenido"], embedding),
+             chunk["contenido"], chunk["_embedding"]),
         )
-        if i % 10 == 0 or i == len(chunks):
-            print(f"    ...{i}/{len(chunks)} chunks vectorizados")
+    print(f"    Norma insertada (id={norma_id}, estado=pendiente_validacion)")
 
-    # --- Relaciones tentativas ---
+    fase(6, f"{len(relacion_candidates)} candidato(s) detectado(s)" if relacion_candidates else "sin candidatos")
     relaciones_guardadas = 0
     for cand in relacion_candidates:
         match = match_existing_norma(cur, cand["referencia_texto"])
@@ -484,18 +454,95 @@ def main():
                 (norma_id, norma_afectada_id, cand["tipo_relacion"]),
             )
             relaciones_guardadas += 1
-            print(f"    🔗 Candidato: {cand['tipo_relacion']} → "
+            print(f"    🔗 {cand['tipo_relacion']} → "
                   f"'{titulo_afectada[:60]}...' (pendiente de confirmar)")
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    print(f"  ✅ Completado: {len(chunks)} chunks, {relaciones_guardadas} relación(es) tentativa(s).")
+    return "ok"
 
-    print(f"\n✅ Listo. {len(chunks)} chunks guardados, "
-          f"{relaciones_guardadas} relación(es) tentativa(s) para revisar.")
-    print("👉 Siguiente paso: abre tu sesión de Claude Code y pide al CLO "
-          "que revise las normas 'pendiente_validacion' y confirme o "
-          "rechace las relaciones tentativas.")
+
+# ---------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Ingestor mecánico de normas (Legal AI) — acepta un "
+                     "archivo PDF o una carpeta con varios."
+    )
+    parser.add_argument("path", help="Ruta a un PDF, o a una carpeta con varios PDFs")
+    parser.add_argument("--dominio", action="append", choices=sorted(DOMINIOS_VALIDOS),
+                         help="Forzar dominio (puede repetirse para varios). "
+                              "Se aplica a TODOS los archivos si es una carpeta.")
+    parser.add_argument("--tipo-norma", help="Forzar tipo de norma (ej. 'decreto supremo')")
+    parser.add_argument("--entidad", help="Forzar entidad emisora (ej. 'SUNAT')")
+    parser.add_argument("--familia", choices=["NEC", "FIDIC", "IFOA", "AIA"],
+                         help="Solo para dominio=contratos: familia del estándar")
+    parser.add_argument("--dry-run", action="store_true",
+                         help="No escribe en Supabase, solo muestra qué haría")
+    args = parser.parse_args()
+
+    input_path = Path(args.path)
+    if not input_path.exists():
+        print(f"❌ No existe la ruta: {args.path}")
+        sys.exit(1)
+
+    if input_path.is_dir():
+        pdf_files = sorted(input_path.rglob("*.pdf"))
+        if not pdf_files:
+            print(f"❌ No encontré ningún .pdf dentro de {args.path}")
+            sys.exit(1)
+        print(f"📂 Carpeta detectada: {len(pdf_files)} PDF(s) encontrados.")
+    else:
+        pdf_files = [input_path]
+
+    if not args.dry_run:
+        if not SUPABASE_DB_URL:
+            print("❌ Falta SUPABASE_DB_URL. Copia scripts/.env.example a "
+                  "scripts/.env y complétalo.")
+            sys.exit(1)
+        check_ollama_ready()
+
+    conn = None
+    cur = None
+    if not args.dry_run:
+        conn = psycopg2.connect(SUPABASE_DB_URL)
+        register_vector(conn)
+        cur = conn.cursor()
+
+    resultados = {}
+    archivo_iter = pdf_files if len(pdf_files) == 1 else tqdm(
+        pdf_files, desc="Progreso total", unit="archivo"
+    )
+
+    try:
+        for pdf_path in archivo_iter:
+            try:
+                resultado = process_one(str(pdf_path), args, cur)
+            except Exception as e:
+                print(f"  ❌ Error inesperado procesando {pdf_path}: {e}")
+                resultado = "error"
+                if conn:
+                    conn.rollback()
+            else:
+                if conn:
+                    conn.commit()
+            resultados[resultado] = resultados.get(resultado, 0) + 1
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    print("\n" + "=" * 50)
+    print("RESUMEN")
+    print("=" * 50)
+    for estado, cantidad in resultados.items():
+        print(f"  {estado}: {cantidad}")
+
+    if resultados.get("ok"):
+        print("\n👉 Siguiente paso: abre tu chat de Cowork (claude.ai) y pide "
+              "al CLO que revise las normas pendientes — ver README, Parte B.")
 
 
 if __name__ == "__main__":
