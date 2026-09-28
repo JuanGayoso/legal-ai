@@ -304,9 +304,16 @@ def embed_text(text: str) -> list[float]:
     resp = requests.post(
         f"{OLLAMA_URL}/api/embeddings",
         json={"model": OLLAMA_EMBED_MODEL, "prompt": NOMIC_DOC_PREFIX + text},
-        timeout=60,
+        timeout=120,
     )
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        try:
+            detalle = resp.json().get("error", resp.text)
+        except Exception:
+            detalle = resp.text
+        raise RuntimeError(
+            f"Ollama devolvió {resp.status_code} al generar el embedding: {detalle}"
+        )
     return resp.json()["embedding"]
 
 
@@ -456,9 +463,17 @@ def process_one(pdf_path: str, args, cur) -> str:
 
     fase(4, f"{len(chunks)} chunk(s)")
     dominio_principal = dominios[0]
-    for chunk in tqdm(chunks, desc="    embeddings", unit="chunk", leave=False):
-        embedding = embed_text(chunk["contenido"])
-        chunk["_embedding"] = embedding
+    for i, chunk in enumerate(tqdm(chunks, desc="    embeddings", unit="chunk", leave=False)):
+        try:
+            chunk["_embedding"] = embed_text(chunk["contenido"])
+        except Exception as e:
+            preview = chunk["contenido"][:150].replace("\n", " ")
+            n_chars = len(chunk["contenido"])
+            raise RuntimeError(
+                f"Falló el embedding del chunk {i + 1}/{len(chunks)} "
+                f"[{chunk['referencia_jerarquica']}] ({n_chars} caracteres): {e}\n"
+                f"    Contenido (primeros 150 car.): {preview!r}"
+            ) from e
 
     fase(5)
     for chunk in chunks:
