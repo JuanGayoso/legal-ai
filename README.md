@@ -168,7 +168,7 @@ Progreso total:  25%|████▎          | 3/12 [00:42<02:15, archivo/s]
     Norma insertada (id=..., estado=pendiente_validacion)
   [6/6] Detectando relaciones — 1 candidato(s) detectado(s)
     🔗 modifica → 'Reglamento de la Ley del IGV...' (pendiente de confirmar)
-  ✅ Completado: 24 chunks, 1 relación(es) tentativa(s).
+  ✅ Completado: 24 chunks, 1 lista(s) para confirmar, 0 en espera, 0 resuelta(s) retroactivamente.
 ```
 
 Cada fase (1 a 6) siempre aparece en el mismo orden, con barras de
@@ -176,6 +176,17 @@ progreso en los pasos que tardan más (páginas de OCR, embeddings, y el
 progreso total si procesas una carpeta). Si algo se traba de verdad
 (por ejemplo, Ollama dejó de responder), vas a ver el mismo paso
 repetirse sin avanzar — ahí sí sabes exactamente dónde mirar.
+
+### Sobre las normas que se referencian entre sí
+
+Si una norma menciona "deroga el artículo X de la Ley N° 12345" pero
+esa Ley 12345 todavía no la has ingerido, la relación **no se pierde**:
+queda guardada como "en espera". Cada vez que ingieres una norma nueva,
+el script revisa automáticamente si resuelve alguna relación que
+quedó en espera de ingestas anteriores — no importa el orden en que
+cargues los PDFs. Puedes ver el estado de todo esto con
+`python pendientes.py` en cualquier momento, o dejar que el CLO lo
+revise solo la próxima vez que abras Cowork (Parte B).
 
 ### Ver qué quedó pendiente de revisión
 

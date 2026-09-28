@@ -339,13 +339,46 @@ def find_relacion_candidates(full_text: str) -> list[dict]:
     return candidates
 
 
-def match_existing_norma(cur, referencia_texto: str):
+def match_existing_norma(cur, referencia_texto: str, excluir_id: str | None = None):
     numero = referencia_texto.split("N°")[-1].strip()
-    cur.execute(
-        "select id, titulo from normas where titulo ilike %s limit 1",
-        (f"%{numero}%",),
-    )
+    if excluir_id:
+        cur.execute(
+            "select id, titulo from normas where titulo ilike %s and id != %s limit 1",
+            (f"%{numero}%", excluir_id),
+        )
+    else:
+        cur.execute(
+            "select id, titulo from normas where titulo ilike %s limit 1",
+            (f"%{numero}%",),
+        )
     return cur.fetchone()
+
+
+def backfill_pending_relations(cur, nueva_norma_id: str, nueva_norma_titulo: str) -> int:
+    """Cada vez que se ingiere una norma nueva, esta función revisa si
+    alguna relación detectada en una ingesta ANTERIOR se había quedado
+    sin destino (norma_afectada_id = null) porque la norma referenciada
+    todavía no existía — y si esta norma nueva es justo esa referencia,
+    la empareja ahora. Así 'la base de datos tiene más normas que la
+    última vez' se traduce automáticamente en relaciones resueltas,
+    sin que nadie tenga que volver a correr la ingesta original."""
+    cur.execute(
+        "select id, referencia_texto from relaciones_normas where norma_afectada_id is null"
+    )
+    pendientes = cur.fetchall()
+
+    resueltas = 0
+    for rel_id, referencia_texto in pendientes:
+        if not referencia_texto:
+            continue
+        numero = referencia_texto.split("N°")[-1].strip()
+        if numero and numero.lower() in nueva_norma_titulo.lower():
+            cur.execute(
+                "update relaciones_normas set norma_afectada_id = %s where id = %s",
+                (nueva_norma_id, rel_id),
+            )
+            resueltas += 1
+    return resueltas
 
 
 # ---------------------------------------------------------------------
@@ -439,25 +472,41 @@ def process_one(pdf_path: str, args, cur) -> str:
     print(f"    Norma insertada (id={norma_id}, estado=pendiente_validacion)")
 
     fase(6, f"{len(relacion_candidates)} candidato(s) detectado(s)" if relacion_candidates else "sin candidatos")
-    relaciones_guardadas = 0
+    relaciones_con_destino = 0
+    relaciones_sin_destino = 0
     for cand in relacion_candidates:
-        match = match_existing_norma(cur, cand["referencia_texto"])
+        match = match_existing_norma(cur, cand["referencia_texto"], excluir_id=norma_id)
+        norma_afectada_id = match[0] if match else None
+        cur.execute(
+            """
+            insert into relaciones_normas
+                (norma_origen_id, norma_afectada_id, referencia_texto,
+                 tipo_relacion, propuesto_por, confirmado)
+            values (%s, %s, %s, %s, 'bibliotecario_script', false)
+            """,
+            (norma_id, norma_afectada_id, cand["referencia_texto"], cand["tipo_relacion"]),
+        )
         if match:
-            norma_afectada_id, titulo_afectada = match
-            cur.execute(
-                """
-                insert into relaciones_normas
-                    (norma_origen_id, norma_afectada_id, tipo_relacion,
-                     propuesto_por, confirmado)
-                values (%s, %s, %s, 'bibliotecario_script', false)
-                """,
-                (norma_id, norma_afectada_id, cand["tipo_relacion"]),
-            )
-            relaciones_guardadas += 1
+            relaciones_con_destino += 1
             print(f"    🔗 {cand['tipo_relacion']} → "
-                  f"'{titulo_afectada[:60]}...' (pendiente de confirmar)")
+                  f"'{match[1][:60]}...' (pendiente de confirmar)")
+        else:
+            relaciones_sin_destino += 1
+            print(f"    ⏳ {cand['tipo_relacion']} → '{cand['referencia_texto']}' "
+                  f"(esa norma aún no está en el corpus; quedará pendiente "
+                  f"hasta que se ingiera)")
 
-    print(f"  ✅ Completado: {len(chunks)} chunks, {relaciones_guardadas} relación(es) tentativa(s).")
+    # Esta norma recién ingresada podría ser, a su vez, la norma que
+    # alguna ingesta ANTERIOR estaba esperando encontrar.
+    resueltas_retro = backfill_pending_relations(cur, norma_id, titulo)
+    if resueltas_retro:
+        print(f"    ♻️  {resueltas_retro} relación(es) de ingestas anteriores "
+              f"quedaron emparejadas ahora que esta norma existe.")
+
+    print(f"  ✅ Completado: {len(chunks)} chunks, "
+          f"{relaciones_con_destino} relación(es) lista(s) para confirmar, "
+          f"{relaciones_sin_destino} en espera de su norma referenciada, "
+          f"{resueltas_retro} resuelta(s) retroactivamente.")
     return "ok"
 
 

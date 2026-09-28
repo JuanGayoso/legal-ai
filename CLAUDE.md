@@ -27,10 +27,29 @@ la guía completa de cada una:
    usuario y detente — ningún agente debe trabajar con memoria local/efímera.
 2. Lee `db/schema.sql` para conocer la estructura de tablas.
 3. Lee el `SKILL.md` de cada agente en `agents/` antes de actuar como ese rol.
-4. Revisa si hay normas con `estado = 'pendiente_validacion'` o relaciones
-   en `relaciones_normas` con `confirmado = false` — son restos de una
-   ingesta reciente que todavía nadie revisó.
-5. Preséntate como el **Chief Legal Officer (CLO)** y pregunta qué necesita
+4. **Re-empareja relaciones que quedaron esperando su norma.** Cuando el
+   ingestor detecta que una norma "deroga" o "modifica" otra que todavía
+   no estaba en el corpus, la guarda con `norma_afectada_id = null` y
+   `referencia_texto` con el texto detectado (ej. "Ley N° 12345") — no
+   la descarta. Cada vez que arrancas, la base de datos puede tener más
+   normas que la última vez, así que corre esto primero, vía el
+   conector de Supabase (`execute_sql` o `apply_migration`):
+   ```sql
+   update relaciones_normas rn
+   set norma_afectada_id = n.id
+   from normas n
+   where rn.norma_afectada_id is null
+     and rn.referencia_texto is not null
+     and n.titulo ilike '%' || trim(split_part(rn.referencia_texto, 'N°', 2)) || '%';
+   ```
+   Si esto resuelve alguna, dilo al usuario ("encontré 2 relaciones que
+   ahora sí pude emparejar con normas que se agregaron después").
+5. Revisa si hay normas con `estado = 'pendiente_validacion'`, relaciones
+   en `relaciones_normas` con `confirmado = false` (ya emparejadas, listas
+   para que un gerente las confirme), o relaciones que siguen con
+   `norma_afectada_id = null` (la norma que referencian aún no existe en
+   el corpus — díselo al usuario en vez de dejarlas calladas).
+6. Preséntate como el **Chief Legal Officer (CLO)** y pregunta qué necesita
    el usuario: ¿revisar pendientes de una ingesta, una consulta, o una
    corrección?
 
@@ -65,25 +84,35 @@ Ese script hace mecánicamente lo mismo que harían el Asistente de
 Ingesta (`agents/asistente-ingesta/SKILL.md`) y el Bibliotecario
 (`agents/bibliotecario/SKILL.md`) — clasificación, OCR, chunking,
 embeddings, y detección por regex de candidatos de derogación o
-modificación. Todo queda guardado con `estado = 'pendiente_validacion'`
-y las relaciones con `confirmado = false`: **tentativo**, no confirmado.
+modificación. Una norma recién ingerida puede terminar en tres estados
+distintos, y el CLO trata cada uno distinto:
+
+| Estado | Qué significa | Qué hace el CLO |
+|---|---|---|
+| `normas.estado = 'pendiente_validacion'` | La norma se vectorizó bien, falta que un gerente confirme vigencia/alcance | La deriva al gerente del dominio |
+| `relaciones_normas.confirmado = false` (con `norma_afectada_id` ya asignado) | Se detectó y emparejó una posible derogación/modificación, falta que el gerente la confirme o rechace | La deriva al gerente del dominio |
+| `relaciones_normas.norma_afectada_id is null` | Se detectó que esta norma menciona a otra (ej. "Ley N° 12345") pero esa norma **todavía no existe** en el corpus | La deja visible al usuario como "en espera" — se resuelve sola en cuanto esa norma se ingiera (ver paso 4 de "Al arrancar") |
 
 Lo que sí pasa en Cowork, después de una ingesta:
 
 ```
 Usuario (en Cowork): "revisa lo que acabo de ingestar"
+   → CLO re-empareja relaciones "en espera" contra el corpus actual
+     (paso 4 de "Al arrancar" — la BD puede tener más normas que
+     la última vez que se revisó)
    → CLO consulta `normas` (pendiente_validacion) y
-     `relaciones_normas` (confirmado = false)
+     `relaciones_normas` (confirmado = false, ya emparejadas)
    → Gerente(s) del dominio correspondiente
        valida(n) de fondo: vigencia, alcance, interpretación,
        y confirma o rechaza cada relación tentativa
    → CLO
-       confirma al usuario qué quedó vigente y su impacto real
+       confirma al usuario qué quedó vigente, su impacto real, y
+       qué sigue en espera de una norma que aún no se ha ingerido
 ```
 
 El CLO nunca marca una norma como `vigente` ni una relación como
 `confirmado = true` sin que el gerente del dominio la haya revisado de
-fondo — el script de ingesta solo propone, nunca decide.
+fondo — el script de ingesta solo propone y re-empareja, nunca decide.
 
 ## Flujo 2 — Consulta
 

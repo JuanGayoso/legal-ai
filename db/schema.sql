@@ -58,7 +58,14 @@ create index on chunks_embeddings (dominio);
 create table relaciones_normas (
   id                uuid primary key default gen_random_uuid(),
   norma_origen_id   uuid not null references normas(id) on delete cascade,
-  norma_afectada_id uuid not null references normas(id) on delete cascade,
+  -- Nullable a propósito: si la norma que se menciona (ej. "Ley N° 12345")
+  -- todavía no está en el corpus al momento de la ingesta, la relación se
+  -- guarda igual con norma_afectada_id = null y referencia_texto con el
+  -- texto detectado, para poder emparejarla automáticamente después,
+  -- cuando esa norma sí se ingiera. Ver ingest.py (backfill_pending_relations)
+  -- y el paso de arranque del CLO en CLAUDE.md.
+  norma_afectada_id uuid references normas(id) on delete cascade,
+  referencia_texto  text,                    -- ej. "Ley N° 12345", tal como se detectó
   tipo_relacion     tipo_relacion not null,
   articulos_afectados text,                  -- ej. "Art. 4, Art. 7 inciso b"
   propuesto_por     text not null default 'bibliotecario',
@@ -66,6 +73,8 @@ create table relaciones_normas (
   confirmado        boolean not null default false,
   creado_en         timestamptz not null default now()
 );
+
+create index on relaciones_normas (norma_afectada_id) where norma_afectada_id is null;
 
 -- ---------------------------------------------------------
 -- criterios_aprendidos: memoria procedural por dominio
