@@ -444,7 +444,7 @@ def process_one(pdf_path: str, args, cur) -> str:
         insert into normas
             (titulo, tipo_norma, familia, entidad_emisora, fecha_publicacion,
              dominios, estado, hash_archivo, resumen)
-        values (%s, %s, %s, %s, %s, %s, 'pendiente_validacion', %s, %s)
+        values (%s, %s, %s, %s, %s, %s::dominio_legal[], 'pendiente_validacion', %s, %s)
         returning id
         """,
         (
