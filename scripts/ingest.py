@@ -81,6 +81,15 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 SUPABASE_DB_URL = os.environ.get("SUPABASE_DB_URL")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+# Ollama limita el contexto a 2048 tokens por defecto para cualquier modelo,
+# aunque nomic-embed-text soporta hasta 8192. Sin este override, un artículo
+# largo (con incisos, tablas, etc.) supera el límite y el /api/embeddings
+# devuelve 500 "input length exceeds the context length".
+OLLAMA_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
+# Umbral de caracteres a partir del cual, incluso con num_ctx alto, partimos
+# el chunk en pedazos más chicos antes de pedir el embedding (colchón de
+# seguridad para artículos excepcionalmente largos o mal segmentados).
+MAX_CHARS_POR_EMBEDDING = 20000
 
 # Nomic recomienda prefijar los textos indexados con "search_document: "
 # (y las consultas, en el lado de Cowork, con "search_query: ") para
@@ -303,7 +312,11 @@ def chunk_by_hierarchy(full_text: str) -> list[dict]:
 def embed_text(text: str) -> list[float]:
     resp = requests.post(
         f"{OLLAMA_URL}/api/embeddings",
-        json={"model": OLLAMA_EMBED_MODEL, "prompt": NOMIC_DOC_PREFIX + text},
+        json={
+            "model": OLLAMA_EMBED_MODEL,
+            "prompt": NOMIC_DOC_PREFIX + text,
+            "options": {"num_ctx": OLLAMA_NUM_CTX},
+        },
         timeout=120,
     )
     if resp.status_code != 200:
@@ -315,6 +328,28 @@ def embed_text(text: str) -> list[float]:
             f"Ollama devolvió {resp.status_code} al generar el embedding: {detalle}"
         )
     return resp.json()["embedding"]
+
+
+def split_texto_largo(texto: str, max_chars: int = MAX_CHARS_POR_EMBEDDING) -> list[str]:
+    """Parte un texto largo en trozos por párrafo, sin cortar palabras,
+    para no superar el contexto del modelo de embeddings aunque el
+    chunking jerárquico haya agrupado un artículo excepcionalmente largo
+    (incisos extensos, tablas, listas, etc.)."""
+    if len(texto) <= max_chars:
+        return [texto]
+
+    partes = []
+    actual = ""
+    for parrafo in texto.split("\n"):
+        candidato = f"{actual}\n{parrafo}" if actual else parrafo
+        if len(candidato) > max_chars and actual:
+            partes.append(actual)
+            actual = parrafo
+        else:
+            actual = candidato
+    if actual:
+        partes.append(actual)
+    return partes
 
 
 def check_ollama_ready():
@@ -461,22 +496,44 @@ def process_one(pdf_path: str, args, cur) -> str:
     )
     norma_id = cur.fetchone()[0]
 
-    fase(4, f"{len(chunks)} chunk(s)")
     dominio_principal = dominios[0]
-    for i, chunk in enumerate(tqdm(chunks, desc="    embeddings", unit="chunk", leave=False)):
+
+    # Si algún chunk quedó excepcionalmente largo (incisos extensos, tablas,
+    # texto sin estructura de artículos clara), lo partimos en sub-fragmentos
+    # antes de pedir el embedding, para no superar el contexto del modelo
+    # (ver split_texto_largo / OLLAMA_NUM_CTX más arriba).
+    chunks_finales = []
+    for chunk in chunks:
+        partes = split_texto_largo(chunk["contenido"])
+        if len(partes) == 1:
+            chunks_finales.append(chunk)
+        else:
+            for idx, parte in enumerate(partes, start=1):
+                chunks_finales.append({
+                    "referencia_jerarquica":
+                        f"{chunk['referencia_jerarquica']} (parte {idx}/{len(partes)})",
+                    "contenido": parte,
+                })
+
+    detalle_fase4 = f"{len(chunks_finales)} chunk(s)"
+    if len(chunks_finales) != len(chunks):
+        detalle_fase4 += f" ({len(chunks_finales) - len(chunks)} de más por partición de artículos largos)"
+    fase(4, detalle_fase4)
+
+    for i, chunk in enumerate(tqdm(chunks_finales, desc="    embeddings", unit="chunk", leave=False)):
         try:
             chunk["_embedding"] = embed_text(chunk["contenido"])
         except Exception as e:
             preview = chunk["contenido"][:150].replace("\n", " ")
             n_chars = len(chunk["contenido"])
             raise RuntimeError(
-                f"Falló el embedding del chunk {i + 1}/{len(chunks)} "
+                f"Falló el embedding del chunk {i + 1}/{len(chunks_finales)} "
                 f"[{chunk['referencia_jerarquica']}] ({n_chars} caracteres): {e}\n"
                 f"    Contenido (primeros 150 car.): {preview!r}"
             ) from e
 
     fase(5)
-    for chunk in chunks:
+    for chunk in chunks_finales:
         cur.execute(
             """
             insert into chunks_embeddings
