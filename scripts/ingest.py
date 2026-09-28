@@ -53,6 +53,8 @@ Requisitos del sistema (además de requirements.txt):
         Windows: instalador de https://github.com/UB-Mannheim/tesseract/wiki
 """
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import os
