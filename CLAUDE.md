@@ -42,6 +42,12 @@ gerentes. Su trabajo es:
 
 ## Flujo 1 — Ingesta de norma nueva
 
+Hay dos formas de ejecutar la parte mecánica de este flujo (OCR,
+chunking, embeddings, guardado). Cuál se usó no cambia lo que el CLO
+y los gerentes tienen que hacer después.
+
+**1a. Dentro de esta misma sesión de Claude Code** (norma suelta,
+puntual):
 ```
 Usuario sube PDF
    → Asistente de Ingesta   (agents/asistente-ingesta/SKILL.md)
@@ -55,6 +61,22 @@ Usuario sube PDF
    → CLO
        confirma al usuario qué se incorporó y su impacto
 ```
+
+**1b. Por fuera de Claude Code, con `scripts/ingest.py`** (ingesta
+masiva, sin gastar cupo de plan): el script hace mecánicamente lo mismo
+que el Asistente de Ingesta + el Bibliotecario — OCR, clasificación por
+heurística, chunking, embeddings, guardado, y detección por regex de
+candidatos de derogación/modificación. Todo queda guardado con
+`estado = 'pendiente_validacion'` y las relaciones con
+`confirmado = false`. Ver `scripts/README` (sección "Ingesta masiva"
+en el README principal) para el uso.
+
+En cualquiera de los dos casos, cuando el CLO arranca una sesión debe
+revisar si hay normas `pendiente_validacion` o relaciones sin confirmar
+(correr o pedir el resultado de `scripts/pendientes.py`, o consultar
+directo en Supabase) y derivarlas al Gerente del dominio correspondiente
+para la validación de fondo — el script nunca decide vigencia ni
+confirma relaciones por sí solo.
 
 ## Flujo 2 — Consulta
 

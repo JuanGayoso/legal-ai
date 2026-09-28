@@ -254,17 +254,111 @@ las credenciales de tu proyecto (sección 2 de este README).
 
 ---
 
-## 7. Primeros pasos recomendados
+## 7. Ingesta masiva sin Claude Code (`scripts/ingest.py`)
 
-1. Carga 1-2 normas de prueba de un mismo dominio y revisa la ficha que
-   genera el Bibliotecario (usa `templates/ficha-norma.md` como referencia
-   de qué debería salir).
-2. Haz una consulta sobre esas normas y confirma que cita
+Para cargar muchas normas de golpe sin gastar el cupo de tu plan de
+Claude, `scripts/ingest.py` hace la parte **mecánica** de la ingesta
+(la que no necesita criterio legal) directamente en Python:
+
+- Detecta página por página si el PDF necesita OCR (Tesseract) o ya
+  tiene texto extraíble.
+- Clasifica tipo de norma, fecha y dominio por heurística (con flags
+  para forzarlo a mano si se equivoca).
+- Hace chunking jerárquico (Título → Capítulo → Artículo).
+- Genera los embeddings con Ollama (`nomic-embed-text`, igual que el
+  resto del proyecto) y los guarda en Supabase.
+- Detecta por expresión regular frases tipo "Derógase el artículo X de
+  la Ley N° ..." y dedja esas relaciones como **tentativas**
+  (`confirmado = false`) para que las revise el gerente del dominio.
+
+Lo que el script **no** hace — sigue siendo trabajo del CLO y los
+gerentes en Claude Code: confirmar si una relación de derogación es
+correcta, decidir si una norma queda `vigente`, o cualquier
+interpretación de fondo. Todo lo que ingesta el script queda con
+`estado = 'pendiente_validacion'`, esperando esa revisión.
+
+### Instalar
+
+```bash
+cd scripts
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Instala también Tesseract con el paquete de español (necesario solo
+para páginas escaneadas):
+```bash
+# macOS
+brew install tesseract tesseract-lang
+
+# Ubuntu/Debian
+sudo apt install tesseract-ocr tesseract-ocr-spa
+
+# Windows: instalador en https://github.com/UB-Mannheim/tesseract/wiki
+```
+
+### Configurar
+
+```bash
+cp .env.example .env
+```
+Edita `.env` y completa `SUPABASE_DB_URL` con la cadena de conexión
+directa a Postgres de tu proyecto (sección 3 de este README explica
+dónde sacarla). Deja `OLLAMA_URL` y `OLLAMA_EMBED_MODEL` con sus
+valores por defecto si no los cambiaste.
+
+### Usar
+
+```bash
+# Probar sin escribir nada en Supabase (revisa clasificación y chunking)
+python ingest.py ruta/a/norma.pdf --dry-run
+
+# Ingesta real, dejando que el script clasifique el dominio solo
+python ingest.py ruta/a/norma.pdf
+
+# Forzando el dominio (recomendado si la heurística se equivoca)
+python ingest.py ruta/a/norma.pdf --dominio tributario
+
+# Norma que cruza dos materias
+python ingest.py ruta/a/norma.pdf --dominio laboral --dominio tributario
+
+# Estándar contractual (NEC/FIDIC/IFOA/AIA)
+python ingest.py ruta/a/contrato.pdf --dominio contratos --familia FIDIC
+
+# Ingesta masiva de una carpeta entera
+for f in ruta/a/normas/*.pdf; do python ingest.py "$f"; done
+```
+
+### Ver qué quedó pendiente de revisión
+
+```bash
+python pendientes.py
+```
+Lista las normas en `pendiente_validacion` y las relaciones sin
+confirmar. Con eso en mano, abres tu sesión de Claude Code y le pides
+al CLO que las revise con el gerente correspondiente.
+
+---
+
+## 8. Primeros pasos recomendados
+
+1. Corre `scripts/ingest.py` con `--dry-run` sobre 1-2 normas de prueba
+   primero — revisa que la clasificación de dominio y el chunking por
+   artículo se vean razonables antes de escribir nada en Supabase.
+2. Sin `--dry-run`, ingesta esas mismas 1-2 normas de verdad y corre
+   `scripts/pendientes.py` para confirmar que quedaron en
+   `pendiente_validacion`.
+3. Abre Claude Code en la carpeta del repo y pide al CLO que revise
+   esos pendientes con el gerente del dominio correspondiente (usa
+   `templates/ficha-norma.md` como referencia de qué debería confirmar).
+4. Haz una consulta sobre esas normas y confirma que cita
    correctamente artículo y vigencia.
-3. Corrige deliberadamente una respuesta para ver que el gerente
+5. Corrige deliberadamente una respuesta para ver que el gerente
    correspondiente registre el criterio en `criterios_aprendidos`
    (revísalo directo en el SQL Editor de Supabase).
-4. Recién después, empieza a cargar el corpus real.
+6. Recién después, empieza a cargar el corpus real con
+   `scripts/ingest.py` en lote.
 
 ---
 
