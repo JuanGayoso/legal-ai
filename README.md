@@ -98,10 +98,11 @@ psql "postgresql://postgres:<tu-password>@<tu-host>.supabase.co:5432/postgres" \
 ```
 
 > ⚠️ **Dimensión del vector**: `schema.sql` define
-> `embedding vector(1536)`, que es la dimensión de
-> `text-embedding-3-small` de OpenAI. Si usas otro modelo de embeddings
-> (Voyage, Cohere, uno local), ajusta ese número **antes** de correr el
-> script — cambiarlo después implica recrear la tabla `chunks_embeddings`.
+> `embedding vector(768)`, que es la dimensión de `nomic-embed-text`
+> (el modelo que usa Ollama en este proyecto — ver sección 5). Si más
+> adelante cambias a otro modelo de embeddings (OpenAI, Voyage, etc.),
+> ajusta ese número **antes** de correr el script — cambiarlo después
+> implica recrear la tabla `chunks_embeddings`.
 
 ### Verificar que se creó bien
 En el SQL Editor, corre:
@@ -184,18 +185,19 @@ curl http://localhost:11434/api/embeddings -d '{
 ```
 Debería devolver un JSON con un arreglo `embedding` de 768 números.
 
-### Importante — dónde corre Ollama vs. dónde corre el agente
+### Importante — este proyecto corre con Claude Code local, no Cowork/nube
 
-- Si trabajas con **Claude Code localmente** (en tu computadora), Ollama
-  corriendo en esa misma máquina es suficiente — el agente le pega a
-  `localhost:11434` directo.
-- Si trabajas desde **Claude Cowork / la nube**, Ollama en tu laptop
-  **no es alcanzable** desde ahí. En ese caso necesitas Ollama corriendo
-  en un servidor con IP/dominio accesible (un VPS, por ejemplo), y
-  apuntar al agente a esa dirección en vez de `localhost`.
-- Si esto se vuelve una limitación, la alternativa más simple sigue
-  siendo OpenAI (pago mínimo, sin servidor que mantener) — ver el punto
-  anterior de este README para el costo aproximado.
+Ollama corriendo en tu propia computadora **solo es alcanzable si Claude
+también corre en esa misma computadora**. Por eso este framework está
+pensado para usarse con **Claude Code local** (terminal, en tu máquina),
+no con una sesión de Claude Cowork en la nube — una sesión en la nube no
+puede llegar a `localhost:11434` de tu laptop.
+
+Si en algún momento prefieres trabajar desde la nube, la alternativa es
+cambiar el proveedor de embeddings a uno con API (OpenAI, Voyage) — ahí
+sí no importa dónde corre el agente, porque llama a un servicio externo
+en vez de a tu propia máquina. Eso implica cambiar `vector(768)` por la
+dimensión de ese modelo en `db/schema.sql` antes de crear las tablas.
 
 ### Si cambias de modelo más adelante
 
@@ -208,33 +210,47 @@ ajustar `vector(768)` en `db/schema.sql` antes.
 
 ---
 
-## 6. Ejecutarlo
+## 6. Ejecutarlo (Claude Code local)
 
-En una tarea nueva de Claude Code o Claude Cowork, con el conector de
-Supabase ya activo, pega:
+Este framework está pensado para correr con **Claude Code en tu propia
+computadora** — así Ollama (sección 5) es alcanzable en `localhost`.
 
+### Instalar Claude Code (si no lo tienes)
+```bash
+npm install -g @anthropic-ai/claude-code
 ```
-Actúa como el Chief Legal Officer del framework Legal AI.
-Lee las instrucciones en:
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/CLAUDE.md
+Más detalles: [docs de Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
 
-Luego lee cada SKILL.md de los agentes desde:
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/clo/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-tributario/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-corporativo/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-laboral/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-contratos/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/asistente-ingesta/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/bibliotecario/SKILL.md
-https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/asistente-laboral-contable/SKILL.md
-
-Confirma que el conector de Supabase está activo. Si no lo está, dilo y
-detente. Luego preséntate y pregúntame si tengo una norma nueva, una
-consulta, o una corrección para el sistema.
+### Clonar este repo
+```bash
+git clone https://github.com/JuanGayoso/legal-ai.git
+cd legal-ai
 ```
 
-O, si ya clonaste este repo localmente (con Claude Code corriendo dentro
-de la carpeta), basta con abrir la sesión ahí: `CLAUDE.md` se carga solo.
+### Verificar que Ollama está corriendo
+```bash
+ollama serve   # si no lo tenías ya levantado
+```
+
+### Abrir Claude Code dentro de la carpeta del repo
+```bash
+claude
+```
+Al estar parado dentro de `legal-ai/`, Claude Code carga automáticamente
+el `CLAUDE.md` del repo — no necesitas pegarle las instrucciones a mano.
+Aun así, el primer mensaje que le mandes puede ser simplemente:
+
+```
+Preséntate como el Chief Legal Officer del framework Legal AI. Confirma
+que el conector de Supabase está activo y que Ollama responde en
+localhost:11434. Si algo falta, dilo y detente. Luego pregúntame si
+tengo una norma nueva, una consulta, o una corrección para el sistema.
+```
+
+### Conector de Supabase en Claude Code
+El conector MCP de Supabase se configura igual que en Claude Cowork —
+ve a la configuración de conectores/MCP de Claude Code y agrégalo con
+las credenciales de tu proyecto (sección 2 de este README).
 
 ---
 
