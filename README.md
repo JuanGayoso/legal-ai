@@ -136,18 +136,75 @@ leer/escribir en esas tablas.
 
 ---
 
-## 5. Configurar el proveedor de embeddings
+## 5. Configurar el proveedor de embeddings (Ollama, local y gratis)
 
-El Bibliotecario (`agents/bibliotecario/SKILL.md`) genera un vector por
-cada chunk de norma. Necesitas decidir y dejar fijo:
+Este proyecto usa **Ollama + `nomic-embed-text`** para generar los
+embeddings — corre en tu propia máquina o servidor, sin costo por uso y
+sin API key. `db/schema.sql` ya está configurado para esto:
+`embedding vector(768)`, que es la dimensión de `nomic-embed-text`.
 
-- **Qué modelo** (ej. `text-embedding-3-small` de OpenAI, 1536 dimensiones).
-- **Dónde vive la API key** (variable de entorno, secret manager, etc. —
-  nunca hardcodeada ni subida al repo).
+### Instalar Ollama
 
-Si cambias de modelo más adelante, todo el corpus ya vectorizado queda
-con embeddings de una dimensión/distribución distinta a los nuevos — lo
-más limpio es re-vectorizar todo el corpus existente en ese momento.
+**macOS:**
+```bash
+brew install ollama
+```
+o descarga el instalador desde [ollama.com/download](https://ollama.com/download).
+
+**Windows:** descarga el instalador desde [ollama.com/download](https://ollama.com/download).
+
+**Linux:**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### Descargar el modelo de embeddings
+
+```bash
+ollama pull nomic-embed-text
+```
+
+### Levantar el servicio
+
+```bash
+ollama serve
+```
+Esto deja Ollama escuchando en `http://localhost:11434`. Tiene que estar
+**corriendo** cada vez que el Bibliotecario vaya a vectorizar una norma
+nueva o a resolver una consulta (que también necesita vectorizar la
+pregunta del usuario para buscar por similitud).
+
+### Probar que funciona
+
+```bash
+curl http://localhost:11434/api/embeddings -d '{
+  "model": "nomic-embed-text",
+  "prompt": "artículo de prueba"
+}'
+```
+Debería devolver un JSON con un arreglo `embedding` de 768 números.
+
+### Importante — dónde corre Ollama vs. dónde corre el agente
+
+- Si trabajas con **Claude Code localmente** (en tu computadora), Ollama
+  corriendo en esa misma máquina es suficiente — el agente le pega a
+  `localhost:11434` directo.
+- Si trabajas desde **Claude Cowork / la nube**, Ollama en tu laptop
+  **no es alcanzable** desde ahí. En ese caso necesitas Ollama corriendo
+  en un servidor con IP/dominio accesible (un VPS, por ejemplo), y
+  apuntar al agente a esa dirección en vez de `localhost`.
+- Si esto se vuelve una limitación, la alternativa más simple sigue
+  siendo OpenAI (pago mínimo, sin servidor que mantener) — ver el punto
+  anterior de este README para el costo aproximado.
+
+### Si cambias de modelo más adelante
+
+Todo el corpus ya vectorizado queda con embeddings de una
+dimensión/distribución distinta a los nuevos — no son comparables entre
+sí. Si cambias de modelo, lo más limpio es **re-vectorizar todo el
+corpus existente** en ese momento (volver a generar los embeddings de
+`chunks_embeddings` para todas las normas) y, si la dimensión cambia,
+ajustar `vector(768)` en `db/schema.sql` antes.
 
 ---
 

@@ -45,7 +45,7 @@ create table chunks_embeddings (
   dominio       dominio_legal not null,
   referencia_jerarquica text not null,       -- "Título III, Cap. 2, Art. 15"
   contenido     text not null,
-  embedding     vector(1536) not null,       -- ajustar dimensión según modelo de embeddings usado
+  embedding     vector(768) not null,        -- 768 = nomic-embed-text (Ollama). Ajustar si cambias de modelo.
   creado_en     timestamptz not null default now()
 );
 
