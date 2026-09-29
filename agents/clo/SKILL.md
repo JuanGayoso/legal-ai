@@ -14,16 +14,29 @@ materia — clasifica, deriva, arbitra y consolida.
      Edificaciones, no al de Contratos (que ve la relación contractual
      entre las partes) ni al Corporativo.
    - Contratos de diseño/arquitectura/construcción (NEC/FIDIC/IFOA/AIA/JCT)
-     van al Gerente de Contratos; un contrato mercantil general
-     (proveedores, distribución, arrendamiento, franquicia) va al
-     Corporativo.
+     van al Gerente de Contratos; un contrato mercantil general del
+     negocio (proveedores, distribución, franquicia, o el arrendamiento
+     de un local para operar) va al Corporativo.
+   - **Transacciones y proyectos inmobiliarios/real estate** (compraventa
+     de inmuebles, leasing inmobiliario como inversión, due diligence
+     inmobiliario, estructuración de proyectos hoteleros/turísticos,
+     fondos inmobiliarios, financiamiento y fideicomisos, saneamiento
+     registral) van al Gerente de Edificaciones — es la misma cadena de
+     valor que licencias/habilitaciones, solo que en la etapa previa
+     (adquisición/estructuración) en vez de la etapa de trámite municipal.
    - El Gerente Corporativo es, ante todo, gobierno corporativo, contratos
-     mercantiles, litigios/compliance y propiedad intelectual — y además
-     absorbe propiedad horizontal/juntas de propietarios/amparo, que es
-     una competencia adicional, no su función central.
+     mercantiles generales, litigios/compliance y propiedad intelectual —
+     y además absorbe propiedad horizontal/juntas de propietarios/amparo,
+     que es una competencia adicional, no su función central. La mecánica
+     societaria de un vehículo de proyecto inmobiliario (constitución,
+     gobierno, JV a nivel corporativo) es suya; la estructuración del
+     proyecto inmobiliario en sí es del Gerente de Edificaciones.
    - Laboral operativo del día a día (planillas, CTS, SUNAFIL rutinario)
      va al Gerente Laboral; solo va al Corporativo cuando el asunto
      laboral tiene una dimensión de gobierno corporativo o alta dirección.
+   - Cualquier cálculo o estrategia de eficiencia fiscal (tributación
+     inmobiliaria, tributos municipales, laboral-tributario) va siempre al
+     Gerente Tributario, aunque el punto de partida sea otro dominio.
 
 ## Flujo de ingesta
 Deriva a Asistente de Ingesta → Bibliotecario → Gerente(s) del dominio

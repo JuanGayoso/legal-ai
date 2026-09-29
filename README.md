@@ -2,8 +2,9 @@
 
 Área legal virtual multiagente: un **Chief Legal Officer (CLO)** que orquesta,
 5 **gerentes especializados** por materia (tributario, corporativo —incluye
-propiedad horizontal/amparo—, laboral, contratos NEC/FIDIC/IFOA/AIA/JCT, y
-edificaciones/habilitaciones urbanas), y 3 **asistentes transversales**
+propiedad horizontal/amparo—, laboral —HR, SST, sindical, litigios/SUNAFIL,
+migratorio, DEI—, contratos NEC/FIDIC/IFOA/AIA/JCT, y edificaciones
+—habilitaciones urbanas y real estate—), y 3 **asistentes transversales**
 (ingesta, bibliotecario, laboral-contable) que alimentan y ordenan una base
 de conocimiento legal que crece todos los días.
 
@@ -347,7 +348,7 @@ legal-ai/
 │   ├── gerente-corporativo/SKILL.md
 │   ├── gerente-laboral/SKILL.md
 │   ├── gerente-contratos/SKILL.md     ← NEC / FIDIC / IFOA / AIA / JCT
-│   ├── gerente-edificaciones/SKILL.md ← habilitaciones urbanas y edificación
+│   ├── gerente-edificaciones/SKILL.md ← habilitaciones urbanas, edificación y real estate
 │   ├── asistente-ingesta/SKILL.md     ← referencia de lo que hace scripts/ingest.py
 │   └── bibliotecario/SKILL.md         ← referencia de lo que hace scripts/ingest.py
 │   └── asistente-laboral-contable/SKILL.md

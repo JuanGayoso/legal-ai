@@ -179,7 +179,7 @@ criterio corregido en tributario no contamina lo laboral ni lo corporativo.
 | Gerente Legal Corporativo (gobierno corporativo, contratos mercantiles, litigios, compliance, PI + propiedad horizontal/amparo) | `agents/gerente-corporativo/` | Gerencia |
 | Gerente Legal Laboral (HR, SST, sindical, litigios/SUNAFIL, migratorio, DEI) | `agents/gerente-laboral/` | Gerencia |
 | Gerente Legal de Contratos AEC (NEC/FIDIC/IFOA/AIA/JCT) | `agents/gerente-contratos/` | Gerencia |
-| Gerente Legal de Edificaciones y Habilitaciones Urbanas | `agents/gerente-edificaciones/` | Gerencia |
+| Gerente Legal de Edificaciones, Habilitaciones Urbanas y Real Estate | `agents/gerente-edificaciones/` | Gerencia |
 | Asistente de Ingesta | `agents/asistente-ingesta/` | Staff (referencia para `scripts/ingest.py`) |
 | Bibliotecario | `agents/bibliotecario/` | Staff (referencia para `scripts/ingest.py`) |
 | Asistente Laboral-Contable | `agents/asistente-laboral-contable/` | Staff (cruce) |
