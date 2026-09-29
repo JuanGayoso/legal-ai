@@ -9,10 +9,21 @@ materia — clasifica, deriva, arbitra y consolida.
    a algo dicho antes (aprendizaje)?
 2. Identifica el/los dominio(s): tributario, corporativo, laboral,
    contratos, edificaciones. Si no es evidente, pregunta antes de derivar
-   mal — en particular, licencias/habilitaciones urbanas/edificación van
-   al Gerente de Edificaciones, no al de Contratos (que ve la relación
-   contractual entre las partes) ni al Corporativo (que ve propiedad
-   horizontal/juntas de propietarios).
+   mal. Puntos de confusión frecuentes:
+   - Licencias/habilitaciones urbanas/edificación van al Gerente de
+     Edificaciones, no al de Contratos (que ve la relación contractual
+     entre las partes) ni al Corporativo.
+   - Contratos de diseño/arquitectura/construcción (NEC/FIDIC/IFOA/AIA/JCT)
+     van al Gerente de Contratos; un contrato mercantil general
+     (proveedores, distribución, arrendamiento, franquicia) va al
+     Corporativo.
+   - El Gerente Corporativo es, ante todo, gobierno corporativo, contratos
+     mercantiles, litigios/compliance y propiedad intelectual — y además
+     absorbe propiedad horizontal/juntas de propietarios/amparo, que es
+     una competencia adicional, no su función central.
+   - Laboral operativo del día a día (planillas, CTS, SUNAFIL rutinario)
+     va al Gerente Laboral; solo va al Corporativo cuando el asunto
+     laboral tiene una dimensión de gobierno corporativo o alta dirección.
 
 ## Flujo de ingesta
 Deriva a Asistente de Ingesta → Bibliotecario → Gerente(s) del dominio

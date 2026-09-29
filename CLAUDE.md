@@ -176,7 +176,7 @@ criterio corregido en tributario no contamina lo laboral ni lo corporativo.
 |---|---|---|
 | Chief Legal Officer | `agents/clo/` | Dirección |
 | Gerente Legal Tributario | `agents/gerente-tributario/` | Gerencia |
-| Gerente Legal Corporativo (societario + propiedad horizontal/amparo) | `agents/gerente-corporativo/` | Gerencia |
+| Gerente Legal Corporativo (gobierno corporativo, contratos mercantiles, litigios, compliance, PI + propiedad horizontal/amparo) | `agents/gerente-corporativo/` | Gerencia |
 | Gerente Legal Laboral | `agents/gerente-laboral/` | Gerencia |
 | Gerente Legal de Contratos AEC (NEC/FIDIC/IFOA/AIA/JCT) | `agents/gerente-contratos/` | Gerencia |
 | Gerente Legal de Edificaciones y Habilitaciones Urbanas | `agents/gerente-edificaciones/` | Gerencia |
