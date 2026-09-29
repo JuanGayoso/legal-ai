@@ -9,7 +9,7 @@ create extension if not exists vector;
 -- Dominios válidos (evita strings sueltos por todo el schema)
 -- ---------------------------------------------------------
 create type dominio_legal as enum
-  ('tributario', 'corporativo', 'laboral', 'contratos');
+  ('tributario', 'corporativo', 'laboral', 'contratos', 'edificaciones');
 
 create type estado_norma as enum
   ('pendiente_validacion', 'vigente', 'derogada_total', 'derogada_parcial');

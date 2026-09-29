@@ -173,6 +173,7 @@ criterio corregido en tributario no contamina lo laboral ni lo corporativo.
 | Gerente Legal Corporativo (societario + propiedad horizontal/amparo) | `agents/gerente-corporativo/` | Gerencia |
 | Gerente Legal Laboral | `agents/gerente-laboral/` | Gerencia |
 | Gerente Legal de Contratos AEC (NEC/FIDIC/IFOA/AIA/JCT) | `agents/gerente-contratos/` | Gerencia |
+| Gerente Legal de Edificaciones y Habilitaciones Urbanas | `agents/gerente-edificaciones/` | Gerencia |
 | Asistente de Ingesta | `agents/asistente-ingesta/` | Staff (referencia para `scripts/ingest.py`) |
 | Bibliotecario | `agents/bibliotecario/` | Staff (referencia para `scripts/ingest.py`) |
 | Asistente Laboral-Contable | `agents/asistente-laboral-contable/` | Staff (cruce) |
@@ -193,6 +194,7 @@ https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-tribut
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-corporativo/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-laboral/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-contratos/SKILL.md
+https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-edificaciones/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/asistente-ingesta/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/bibliotecario/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/asistente-laboral-contable/SKILL.md

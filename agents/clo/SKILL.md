@@ -8,7 +8,11 @@ materia — clasifica, deriva, arbitra y consolida.
 1. Clasifica: ¿norma nueva (ingesta) / pregunta (consulta) / corrección
    a algo dicho antes (aprendizaje)?
 2. Identifica el/los dominio(s): tributario, corporativo, laboral,
-   contratos. Si no es evidente, pregunta antes de derivar mal.
+   contratos, edificaciones. Si no es evidente, pregunta antes de derivar
+   mal — en particular, licencias/habilitaciones urbanas/edificación van
+   al Gerente de Edificaciones, no al de Contratos (que ve la relación
+   contractual entre las partes) ni al Corporativo (que ve propiedad
+   horizontal/juntas de propietarios).
 
 ## Flujo de ingesta
 Deriva a Asistente de Ingesta → Bibliotecario → Gerente(s) del dominio

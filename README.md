@@ -1,10 +1,11 @@
 # ⚖️ Legal AI
 
 Área legal virtual multiagente: un **Chief Legal Officer (CLO)** que orquesta,
-4 **gerentes especializados** por materia (tributario, corporativo, laboral,
-contratos NEC/FIDIC/IFOA/AIA), y 3 **asistentes transversales** (ingesta,
-bibliotecario, laboral-contable) que alimentan y ordenan una base de
-conocimiento legal que crece todos los días.
+5 **gerentes especializados** por materia (tributario, corporativo —incluye
+propiedad horizontal/amparo—, laboral, contratos NEC/FIDIC/IFOA/AIA/JCT, y
+edificaciones/habilitaciones urbanas), y 3 **asistentes transversales**
+(ingesta, bibliotecario, laboral-contable) que alimentan y ordenan una base
+de conocimiento legal que crece todos los días.
 
 Rama legal de [boardroom-ai](https://github.com/JuanGayoso/boardroom-ai),
 con una diferencia clave: la memoria no es un `.md` de una sola sesión — es
@@ -140,6 +141,7 @@ equivoca, o si quieres asegurarte):
 python ingest.py ruta/a/norma.pdf --dominio tributario
 python ingest.py ruta/a/norma.pdf --dominio laboral --dominio tributario   # materia cruzada
 python ingest.py ruta/a/contrato.pdf --dominio contratos --familia FIDIC
+python ingest.py ruta/a/licencia.pdf --dominio edificaciones
 ```
 
 ### Qué vas a ver en pantalla — las fases del proceso
@@ -267,7 +269,8 @@ legal-ai/
 │   ├── gerente-tributario/SKILL.md
 │   ├── gerente-corporativo/SKILL.md
 │   ├── gerente-laboral/SKILL.md
-│   ├── gerente-contratos/SKILL.md     ← NEC / FIDIC / IFOA / AIA
+│   ├── gerente-contratos/SKILL.md     ← NEC / FIDIC / IFOA / AIA / JCT
+│   ├── gerente-edificaciones/SKILL.md ← habilitaciones urbanas y edificación
 │   ├── asistente-ingesta/SKILL.md     ← referencia de lo que hace scripts/ingest.py
 │   └── bibliotecario/SKILL.md         ← referencia de lo que hace scripts/ingest.py
 │   └── asistente-laboral-contable/SKILL.md

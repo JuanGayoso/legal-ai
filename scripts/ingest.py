@@ -101,7 +101,7 @@ NOMIC_DOC_PREFIX = "search_document: "
 
 MIN_CHARS_NATIVE_PAGE = 40  # bajo este umbral, la página se considera escaneada
 
-DOMINIOS_VALIDOS = {"tributario", "corporativo", "laboral", "contratos"}
+DOMINIOS_VALIDOS = {"tributario", "corporativo", "laboral", "contratos", "edificaciones"}
 
 KEYWORDS_DOMINIO = {
     "tributario": [
@@ -120,6 +120,15 @@ KEYWORDS_DOMINIO = {
     "contratos": [
         "fidic", "nec", "ifoa", "aia", "contrato colaborativo",
         "resolución de disputas", "resolucion de disputas",
+    ],
+    "edificaciones": [
+        "habilitación urbana", "habilitacion urbana", "licencia de edificación",
+        "licencia de edificacion", "reglamento nacional de edificaciones",
+        "vivienda de interés social", "vivienda de interes social",
+        "conformidad de obra", "declaratoria de edificación",
+        "declaratoria de edificacion", "parámetros urbanísticos",
+        "parametros urbanisticos", "comisión técnica", "comision tecnica",
+        "habilitaciones urbanas y edificaciones", "anteproyecto en consulta",
     ],
 }
 

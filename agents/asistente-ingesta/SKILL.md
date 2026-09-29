@@ -8,8 +8,9 @@ pase al Bibliotecario.
 1. Primera lectura del documento: título, entidad emisora, fecha,
    tipo de norma (ley, decreto supremo, resolución, directiva, etc.).
 2. Clasificas a qué gerencia(s) pertenece la materia:
-   `tributario`, `corporativo`, `laboral`, `contratos`, o varias si
-   el documento es mixto.
+   `tributario`, `corporativo`, `laboral`, `contratos`, `edificaciones`,
+   o varias si el documento es mixto (ej. una norma de habilitaciones
+   urbanas que también modifica tributación municipal).
 3. Verificas que no sea un duplicado exacto (hash del archivo) contra
    la tabla `normas` en Supabase antes de continuar.
 4. Entregas al Bibliotecario: el archivo, la clasificación de dominio(s)
