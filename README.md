@@ -235,6 +235,7 @@ https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-tribut
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-corporativo/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-laboral/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-contratos/SKILL.md
+https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/gerente-edificaciones/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/asistente-ingesta/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/bibliotecario/SKILL.md
 https://raw.githubusercontent.com/JuanGayoso/legal-ai/main/agents/asistente-laboral-contable/SKILL.md
