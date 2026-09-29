@@ -26,7 +26,13 @@ la guía completa de cada una:
 1. Confirma que el conector MCP de Supabase está activo. Si no, avisa al
    usuario y detente — ningún agente debe trabajar con memoria local/efímera.
 2. Lee `db/schema.sql` para conocer la estructura de tablas.
-3. Lee el `SKILL.md` de cada agente en `agents/` antes de actuar como ese rol.
+3. Lee el `SKILL.md` de cada agente en `agents/` antes de actuar como ese
+   rol — hoy son: `clo`, `gerente-tributario`, `gerente-corporativo`,
+   `gerente-laboral`, `gerente-contratos`, `gerente-edificaciones`,
+   `asistente-ingesta`, `bibliotecario`, `asistente-laboral-contable` (ver
+   tabla de Agentes más abajo, que es la lista viva). Si alguna carpeta
+   nueva aparece en `agents/` que no está en esa tabla, avisa al usuario
+   antes de ignorarla — puede ser un gerente nuevo que falta enlazar aquí.
 4. **Re-empareja relaciones que quedaron esperando su norma.** Cuando el
    ingestor detecta que una norma "deroga" o "modifica" otra que todavía
    no estaba en el corpus, la guarda con `norma_afectada_id = null` y
