@@ -421,6 +421,11 @@ def find_relacion_candidates(full_text: str) -> list[dict]:
 
 def match_existing_norma(cur, referencia_texto: str, excluir_id: str | None = None):
     numero = referencia_texto.split("N°")[-1].strip()
+    if not numero:
+        # referencia_texto termina justo en "N°" sin número después (o está
+        # vacío tras el split): sin este guard, el ilike de abajo quedaría
+        # como '%%' y matchearía cualquier norma al azar.
+        return None
     if excluir_id:
         cur.execute(
             "select id, titulo from normas where titulo ilike %s and id != %s limit 1",

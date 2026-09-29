@@ -40,8 +40,29 @@ la guía completa de cada una:
    from normas n
    where rn.norma_afectada_id is null
      and rn.referencia_texto is not null
+     and trim(split_part(rn.referencia_texto, 'N°', 2)) <> ''
      and n.titulo ilike '%' || trim(split_part(rn.referencia_texto, 'N°', 2)) || '%';
    ```
+   **Ojo:** si `referencia_texto` no contiene "N°" (o termina justo en
+   "N°" sin número después), `split_part(..., 'N°', 2)` devuelve `''`, y
+   sin el filtro `<> ''` el `ilike '%' || '' || '%'` se vuelve `'%%'` —
+   coincide con CUALQUIER norma y empareja al azar. La condición
+   `trim(...) <> ''` es la que evita eso; no la quites. Antes de correr el
+   `UPDATE`, corre primero el mismo filtro como `SELECT` para ver qué va a
+   emparejar:
+   ```sql
+   select rn.id, rn.referencia_texto, n.id as norma_afectada_candidata, n.titulo
+   from relaciones_normas rn
+   join normas n
+     on n.titulo ilike '%' || trim(split_part(rn.referencia_texto, 'N°', 2)) || '%'
+   where rn.norma_afectada_id is null
+     and rn.referencia_texto is not null
+     and trim(split_part(rn.referencia_texto, 'N°', 2)) <> '';
+   ```
+   Si el `SELECT` se ve razonable, recién ahí corre el `UPDATE`. Una
+   `referencia_texto` sin "N°" (ej. "el TUO de Tributación Municipal")
+   simplemente no entra al `UPDATE` — queda en espera hasta que el
+   Bibliotecario/gerente la resuelva a mano o el texto detectado mejore.
    Si esto resuelve alguna, dilo al usuario ("encontré 2 relaciones que
    ahora sí pude emparejar con normas que se agregaron después").
 5. Revisa si hay normas con `estado = 'pendiente_validacion'`, relaciones
