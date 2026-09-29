@@ -260,6 +260,82 @@ confirmar. Luego preséntate y pregúntame qué necesito.
 
 ---
 
+## Parte C — Desplegar el corpus en otra computadora / para otra persona
+
+Si quieres que otra persona (otro estudio, otra oficina, un colega) use este
+mismo framework pero **con su propia copia del corpus**, hay dos formas de
+hacerlo. En casi todos los casos conviene la copia independiente: cada quien
+termina con su propia base de datos, que desde ese momento crece por
+separado — lo que uno ingiera o corrija no le llega al otro.
+
+La alternativa (agregarla como colaboradora a tu mismo proyecto de Supabase,
+para que ambos lean y escriban la misma base en tiempo real) solo tiene
+sentido si son literalmente el mismo equipo trabajando sobre el mismo
+corpus — y esa persona vería también tus `criterios_aprendidos` internos.
+
+### C1. Copia independiente (recomendado)
+
+No necesitas compartir tu `SUPABASE_DB_URL` con nadie — solo un archivo
+`.sql` con los datos. Usa `pg_dump`/`psql` (vienen con Postgres.app en Mac,
+o instálalos con `brew install libpq` y agrégalo a tu PATH).
+
+**1. La otra persona crea su propio proyecto en Supabase** (gratis, su
+propia cuenta) y sigue la Parte A2 de este README para obtener su propio
+`SUPABASE_DB_URL`.
+
+**2. Ella aplica el mismo schema** (crea las tablas vacías, el enum de
+dominios completo, la extensión `vector`, todo):
+```bash
+psql "postgresql://postgres:SU_PASSWORD@SU_HOST.supabase.co:5432/postgres" -f db/schema.sql
+```
+
+**3. Tú exportas solo los datos** (no el schema, no credenciales) desde tu
+máquina, usando tu propio `SUPABASE_DB_URL` (el de tu `scripts/.env`):
+```bash
+pg_dump "$SUPABASE_DB_URL" \
+  --data-only --no-owner --no-privileges \
+  --table=public.normas \
+  --table=public.chunks_embeddings \
+  --table=public.relaciones_normas \
+  --table=public.criterios_aprendidos \
+  --table=public.historial_consultas \
+  -f corpus_legal_ai.sql
+```
+Si **no** quieres compartir tus `criterios_aprendidos` (el criterio
+jurídico aprendido de tus correcciones, que puede ser específico de tu
+estudio), quita esa línea `--table=public.criterios_aprendidos` del
+comando — el resto del corpus normativo sí viaja igual.
+
+**4. Le envías `corpus_legal_ai.sql`** por el medio que prefieras — es solo
+datos, sin ninguna contraseña ni connection string adentro.
+
+**5. Ella lo restaura en su propio proyecto**:
+```bash
+psql "postgresql://postgres:SU_PASSWORD@SU_HOST.supabase.co:5432/postgres" \
+  -c "SET session_replication_role = replica;" \
+  -f corpus_legal_ai.sql \
+  -c "SET session_replication_role = DEFAULT;"
+```
+El `session_replication_role = replica` desactiva temporalmente la
+verificación de llaves foráneas durante la carga, para que el orden en que
+`pg_dump` escribió las tablas no cause errores.
+
+Desde ahí, su copia es 100% independiente: lo que ella ingiera o corrija
+con su propio CLO en Cowork no te afecta a ti, ni viceversa. Ella solo
+necesita, además, su propio Ollama corriendo localmente (Parte A4) para
+seguir ingiriendo normas nuevas desde su computadora.
+
+### C2. Base de datos compartida (mismo equipo)
+
+Si en cambio quieres que trabaje sobre tu misma base en tiempo real:
+agrégala como colaboradora de tu proyecto de Supabase (Project Settings →
+Team → Invite member) para que use el mismo conector MCP en su propia
+sesión de Cowork. No hay nada que exportar ni restaurar — pero ten en
+cuenta que verá y podrá modificar todo lo que hay ahí, incluidos los
+`criterios_aprendidos` de cada gerente.
+
+---
+
 ## Estructura del repo
 
 ```
